@@ -24,27 +24,30 @@ jobs:
     - name: Install Dependencies
       run: swift package resolve
 
-    # List available destinations
-    - name: List Available Destinations
-      run: xcodebuild -scheme 'Requestify' -showdestinations
-
-    # Run tests with code coverage on iOS simulator
-   # - name: Run Tests with Code Coverage
-    #  run: |
-     #   xcodebuild test \
-      #    -scheme 'Requestify' \
-       #   -destination 'platform=iOS Simulator,name=iPhone 14 Pro' \
-        #  -destination-timeout 60 \
-         # -enableCodeCoverage YES \
-          #-resultBundlePath TestResults.xcresult
-
-    # Build for iOS
-    - name: Build iOS App
+    # Build and Test for iOS
+    - name: Build and Test
       run: |
-        xcodebuild clean archive \
+        # First, build for generic iOS device
+        xcodebuild clean build \
           -scheme 'Requestify' \
+          -destination 'generic/platform=iOS' \
+          -configuration Release
+
+        # Then run tests on simulator
+        xcodebuild test \
+          -scheme 'Requestify' \
+          -destination 'platform=iOS Simulator,name=iPhone 14 Pro,OS=latest' \
+          -configuration Release \
+          -enableCodeCoverage YES \
+          -resultBundlePath TestResults.xcresult
+
+    # Create Archive
+    - name: Create Archive
+      run: |
+        xcodebuild archive \
+          -scheme 'Requestify' \
+          -destination 'generic/platform=iOS' \
           -archivePath $RUNNER_TEMP/Requestify.xcarchive \
-          -sdk iphoneos \
           -configuration Release \
           CODE_SIGNING_ALLOWED=NO
 
