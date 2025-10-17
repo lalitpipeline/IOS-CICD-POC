@@ -27,12 +27,17 @@ jobs:
     # Setup iOS simulator
     - name: Setup iOS Simulator
       run: |
-        # List available runtimes
-        xcrun simctl list runtimes
+        # Get the latest available iOS runtime
+        RUNTIME=$(xcrun simctl list runtimes | grep iOS | tail -n1 | cut -d ' ' -f6)
+        echo "Available Runtime: $RUNTIME"
+        
         # Create and boot simulator
-        UDID=$(xcrun simctl create "iOS-Test" com.apple.CoreSimulator.SimDeviceType.iPhone-14 com.apple.CoreSimulator.SimRuntime.iOS-16-0)
+        UDID=$(xcrun simctl create "iOS-Test" "iPhone 14" "$RUNTIME")
         xcrun simctl boot "$UDID"
         echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
+        
+        # Show the created simulator
+        xcrun simctl list devices | grep "iOS-Test"
 
     # Build and Test for iOS
     - name: Build and Test
