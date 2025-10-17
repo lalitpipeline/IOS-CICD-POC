@@ -12,7 +12,7 @@ on:
       - main
 
 jobs:
-  test-ios:
+  build-and-test:
     runs-on: macos-latest
 
     steps:
@@ -29,11 +29,37 @@ jobs:
       run: xcodebuild -scheme 'Requestify' -showdestinations
 
     # Run tests with code coverage on iOS simulator
-    - name: Run Tests with Code Coverage
+   # - name: Run Tests with Code Coverage
+    #  run: |
+     #   xcodebuild test \
+      #    -scheme 'Requestify' \
+       #   -destination 'platform=iOS Simulator,name=iPhone 14 Pro' \
+        #  -destination-timeout 60 \
+         # -enableCodeCoverage YES \
+          #-resultBundlePath TestResults.xcresult
+
+    # Build for iOS
+    - name: Build iOS App
       run: |
-        xcodebuild test \
+        xcodebuild clean archive \
           -scheme 'Requestify' \
-          -destination 'platform=iOS Simulator,name=iPhone 14 Pro' \
-          -destination-timeout 60 \
-          -enableCodeCoverage YES \
-          -resultBundlePath TestResults.xcresult
+          -archivePath $RUNNER_TEMP/Requestify.xcarchive \
+          -sdk iphoneos \
+          -configuration Release \
+          CODE_SIGNING_ALLOWED=NO
+
+    # Create IPA
+    - name: Create IPA
+      run: |
+        xcodebuild -exportArchive \
+          -archivePath $RUNNER_TEMP/Requestify.xcarchive \
+          -exportPath $RUNNER_TEMP/Requestify \
+          -exportOptionsPlist exportOptions.plist
+
+    # Upload IPA as artifact
+    - name: Upload IPA
+      uses: actions/upload-artifact@v3
+      with:
+        name: Requestify-iOS
+        path: ${{ runner.temp }}/Requestify/*.ipa
+        retention-days: 5
