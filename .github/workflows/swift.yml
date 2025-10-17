@@ -28,10 +28,11 @@ jobs:
     - name: Setup iOS Simulator
       run: |
         set -e
-        echo "Finding an iOS Simulator destination for scheme 'Requestify'..."
-        xcodebuild -scheme 'Requestify' -showdestinations || true
-        UDID=$(xcodebuild -scheme 'Requestify' -showdestinations \
-          | awk -F'id:' '/platform:iOS Simulator/ { gsub(/[ ,}]/, "", $2); if($2!=""){ print $2; exit } }')
+        echo "Finding an iOS Simulator destination for scheme 'Requestify-Package'..."
+        xcodebuild -scheme 'Requestify-Package' -showdestinations || true
+        # Prefer a real simulator UDID (UUID format), ignore placeholder ids
+        UDID=$(xcodebuild -scheme 'Requestify-Package' -showdestinations \
+          | awk -F'id:' '/platform:iOS Simulator/ { gsub(/[ ,}]/, "", $2); if($2 ~ /^[0-9A-Fa-f-]{36}$/){ print $2; exit } }')
         if [ -z "$UDID" ]; then
           echo "No simulator UDID found from showdestinations. Tests will be skipped."
         else
@@ -42,16 +43,16 @@ jobs:
     # Build and Test for iOS
     - name: Build and Test
       run: |
-        # First, build for generic iOS device
+        # First, build for generic iOS device (SPM scheme)
         xcodebuild clean build \
-          -scheme 'Requestify' \
+          -scheme 'Requestify-Package' \
           -destination 'generic/platform=iOS' \
           -configuration Release
 
         # Then run tests on simulator (if destination found)
         if [ -n "$SIMULATOR_UDID" ]; then
           xcodebuild test \
-            -scheme 'Requestify' \
+            -scheme 'Requestify-Package' \
             -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
             -configuration Release \
             -enableCodeCoverage YES \
@@ -64,7 +65,7 @@ jobs:
     - name: Create Archive
       run: |
         xcodebuild archive \
-          -scheme 'Requestify' \
+          -scheme 'Requestify-Package' \
           -destination 'generic/platform=iOS' \
           -archivePath $RUNNER_TEMP/Requestify.xcarchive \
           -configuration Release \
