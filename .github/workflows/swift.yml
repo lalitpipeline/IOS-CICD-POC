@@ -58,7 +58,7 @@ jobs:
 
     # Upload IPA as artifact
     - name: Upload IPA
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Requestify-iOS
         path: ${{ runner.temp }}/Requestify/*.ipa
