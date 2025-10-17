@@ -24,11 +24,12 @@ jobs:
     - name: Install Dependencies
       run: swift package resolve
 
-    # Run tests with code coverage on latest iOS
+    # Run tests with code coverage on iOS simulator
     - name: Run Tests with Code Coverage
       run: |
+        destination=$(xcrun xctrace list devices 2>&1 | grep -m 1 "^iPhone" | awk -F'[()]' '{print $2}' | sed 's/ Simulator$//')
         xcodebuild test \
           -scheme 'Requestify' \
-          -destination 'platform=iOS Simulator,name=iPhone 15,OS=17.0' \
+          -destination "platform=iOS Simulator,name=$destination" \
           -enableCodeCoverage YES \
           -resultBundlePath TestResults.xcresult
