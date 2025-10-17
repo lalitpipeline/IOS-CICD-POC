@@ -24,6 +24,16 @@ jobs:
     - name: Install Dependencies
       run: swift package resolve
 
+    # Setup iOS simulator
+    - name: Setup iOS Simulator
+      run: |
+        # List available runtimes
+        xcrun simctl list runtimes
+        # Create and boot simulator
+        UDID=$(xcrun simctl create "iOS-Test" com.apple.CoreSimulator.SimDeviceType.iPhone-14 com.apple.CoreSimulator.SimRuntime.iOS-16-0)
+        xcrun simctl boot "$UDID"
+        echo "SIMULATOR_UDID=$UDID" >> $GITHUB_ENV
+
     # Build and Test for iOS
     - name: Build and Test
       run: |
@@ -36,7 +46,7 @@ jobs:
         # Then run tests on simulator
         xcodebuild test \
           -scheme 'Requestify' \
-          -destination 'platform=iOS Simulator,name=iPhone 14 Pro,OS=latest' \
+          -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
           -configuration Release \
           -enableCodeCoverage YES \
           -resultBundlePath TestResults.xcresult
