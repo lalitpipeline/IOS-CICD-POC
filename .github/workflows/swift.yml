@@ -38,7 +38,7 @@ jobs:
       shell: bash
       run: |
         shopt -s nullglob
-        projs=(*.xcodeproj)
+        projs=(App/*.xcodeproj *.xcodeproj App/*.xcworkspace *.xcworkspace)
         if [ ${#projs[@]} -gt 0 ]; then
           echo "has_xcodeproj=true" >> "$GITHUB_OUTPUT"
           echo "Found Xcode project(s): ${projs[*]}"
