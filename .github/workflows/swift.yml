@@ -24,6 +24,14 @@ jobs:
     - name: Install Dependencies
       run: swift package resolve
 
+    # Generate demo iOS app Xcode project from XcodeGen
+    - name: Install XcodeGen
+      run: brew install xcodegen
+
+    - name: Generate Xcode project
+      working-directory: App
+      run: xcodegen generate
+
     # Detect Xcode project (needed for archive/IPA)
     - name: Detect Xcode project
       id: detect
@@ -51,13 +59,14 @@ jobs:
       if: steps.detect.outputs.has_xcodeproj == 'true'
       shell: bash
       run: |
-        APP_SCHEME=$(xcodebuild -list -json 2>/dev/null | /usr/bin/python3 -c 'import sys,json; d=json.load(sys.stdin); src=(d.get("project") or d.get("workspace") or {}); schemes=src.get("schemes",[]); print(next((s for s in schemes if "Tests" not in s and "Package" not in s), ""))')
+        # Look for scheme in generated project
+        APP_SCHEME=$(xcodebuild -list -json -project App/RequestifyDemo.xcodeproj 2>/dev/null | /usr/bin/python3 -c 'import sys,json; d=json.load(sys.stdin); src=(d.get("project") or d.get("workspace") or {}); schemes=src.get("schemes",[]); print(next((s for s in schemes if "Tests" not in s and "Package" not in s), ""))')
         if [ -z "$APP_SCHEME" ]; then
           echo "No suitable app scheme found; skipping archive."
           exit 0
         fi
         echo "Archiving scheme: $APP_SCHEME"
-        xcodebuild archive \
+        xcodebuild -project App/RequestifyDemo.xcodeproj archive \
           -scheme "$APP_SCHEME" \
           -destination 'generic/platform=iOS' \
           -archivePath "$RUNNER_TEMP/Requestify.xcarchive" \
