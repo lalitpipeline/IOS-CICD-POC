@@ -6,18 +6,9 @@
     <string>development</string>
     <key>compileBitcode</key>
     <false/>
-    <key>provisioningProfiles</key>
-    <dict>
-        <key>com.your.bundle.id</key>
-        <string>YOUR_PROVISIONING_PROFILE_NAME</string>
-    </dict>
-    <key>signingCertificate</key>
-    <string>Apple Development</string>
     <key>signingStyle</key>
     <string>automatic</string>
     <key>stripSwiftSymbols</key>
     <true/>
-    <key>teamID</key>
-    <string>YOUR_TEAM_ID</string>
 </dict>
 </plist>
