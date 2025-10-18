@@ -4,11 +4,5 @@
 <dict>
     <key>method</key>
     <string>development</string>
-    <key>compileBitcode</key>
-    <false/>
-    <key>signingStyle</key>
-    <string>automatic</string>
-    <key>stripSwiftSymbols</key>
-    <true/>
 </dict>
 </plist>
