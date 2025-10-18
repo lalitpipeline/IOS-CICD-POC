@@ -54,9 +54,64 @@ jobs:
     - name: Test (SPM, macOS)
       run: swift test --enable-code-coverage -v
 
-    # Create Archive (only if an Xcode project exists)
-    - name: Create Archive
+    # Optional: Prepare code signing if secrets are provided
+    - name: Setup Code Signing
+      id: signing_setup
       if: steps.detect.outputs.has_xcodeproj == 'true'
+      shell: bash
+      run: |
+        set -e
+        # Ensure all required secrets are present
+        if [ -z "${{ secrets.APPLE_TEAM_ID }}" ] || [ -z "${{ secrets.APP_BUNDLE_ID }}" ] || [ -z "${{ secrets.SIGNING_CERT_BASE64 }}" ] || [ -z "${{ secrets.SIGNING_CERT_PASSWORD }}" ] || [ -z "${{ secrets.PROVISIONING_PROFILE_BASE64 }}" ] || [ -z "${{ secrets.PROVISIONING_PROFILE_NAME }}" ]; then
+          echo "One or more signing secrets are missing; proceeding without signing."
+          echo "signing_enabled=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        KEYCHAIN=build.keychain
+        KEYCHAIN_PASSWORD=actions
+
+        # Decode cert and provisioning profile
+        echo "Decoding signing certificate and provisioning profile..."
+        echo "${{ secrets.SIGNING_CERT_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+        echo "${{ secrets.PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/profile.mobileprovision"
+
+        # Create and configure keychain
+        security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+        security default-keychain -s "$KEYCHAIN"
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+        security import "$RUNNER_TEMP/signing.p12" -k "$KEYCHAIN" -P "${{ secrets.SIGNING_CERT_PASSWORD }}" -A -T /usr/bin/codesign
+        security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
+        # Install provisioning profile
+        mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+        UUID=$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" | /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
+        cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
+        echo "Installed provisioning profile with UUID: $UUID"
+
+        # Generate exportOptions.plist for development signing via printf (avoid heredoc YAML issues)
+        printf '%s\n' \
+          '<?xml version="1.0" encoding="UTF-8"?>' \
+          '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+          '<plist version="1.0">' \
+          '<dict>' \
+          '  <key>method</key>' \
+          '  <string>development</string>' \
+          '  <key>teamID</key>' \
+          "  <string>${{ secrets.APPLE_TEAM_ID }}</string>" \
+          '  <key>signingStyle</key>' \
+          '  <string>manual</string>' \
+          '  <key>provisioningProfiles</key>' \
+          '  <dict>' \
+          "    <key>${{ secrets.APP_BUNDLE_ID }}</key>" \
+          "    <string>${{ secrets.PROVISIONING_PROFILE_NAME }}</string>" \
+          '  </dict>' \
+          '</dict>' \
+          '</plist>' > "$RUNNER_TEMP/exportOptions.plist"
+        echo "signing_enabled=true" >> "$GITHUB_OUTPUT"
+
+    # Create Archive (signed)
+    - name: Create Archive (signed)
+      if: steps.detect.outputs.has_xcodeproj == 'true' && steps.signing_setup.outputs.signing_enabled == 'true'
       shell: bash
       run: |
         # Look for scheme in generated project
@@ -65,7 +120,29 @@ jobs:
           echo "No suitable app scheme found; skipping archive."
           exit 0
         fi
-        echo "Archiving scheme: $APP_SCHEME"
+        echo "Archiving scheme (signed): $APP_SCHEME"
+        xcodebuild -project App/RequestifyDemo.xcodeproj archive \
+          -scheme "$APP_SCHEME" \
+          -destination 'generic/platform=iOS' \
+          -archivePath "$RUNNER_TEMP/Requestify.xcarchive" \
+          -configuration Release \
+          DEVELOPMENT_TEAM='${{ secrets.APPLE_TEAM_ID }}' \
+          PRODUCT_BUNDLE_IDENTIFIER='${{ secrets.APP_BUNDLE_ID }}' \
+          CODE_SIGN_STYLE=Manual \
+          PROVISIONING_PROFILE_SPECIFIER='${{ secrets.PROVISIONING_PROFILE_NAME }}'
+
+    # Create Archive (unsigned fallback)
+    - name: Create Archive (unsigned)
+      if: steps.detect.outputs.has_xcodeproj == 'true' && steps.signing_setup.outputs.signing_enabled != 'true'
+      shell: bash
+      run: |
+        # Look for scheme in generated project
+        APP_SCHEME=$(xcodebuild -list -json -project App/RequestifyDemo.xcodeproj 2>/dev/null | /usr/bin/python3 -c 'import sys,json; d=json.load(sys.stdin); src=(d.get("project") or d.get("workspace") or {}); schemes=src.get("schemes",[]); print(next((s for s in schemes if "Tests" not in s and "Package" not in s), ""))')
+        if [ -z "$APP_SCHEME" ]; then
+          echo "No suitable app scheme found; skipping archive."
+          exit 0
+        fi
+        echo "Archiving scheme (unsigned): $APP_SCHEME"
         xcodebuild -project App/RequestifyDemo.xcodeproj archive \
           -scheme "$APP_SCHEME" \
           -destination 'generic/platform=iOS' \
@@ -81,19 +158,51 @@ jobs:
 
 
     # Create IPA
-    - name: Create IPA
-      if: steps.detect.outputs.has_xcodeproj == 'true'
+    - name: Create IPA (signed)
+      if: steps.detect.outputs.has_xcodeproj == 'true' && steps.signing_setup.outputs.signing_enabled == 'true'
       id: export_ipa
       continue-on-error: true
       run: |
         xcodebuild -exportArchive \
           -archivePath $RUNNER_TEMP/Requestify.xcarchive \
           -exportPath $RUNNER_TEMP/Requestify \
+          -exportOptionsPlist "$RUNNER_TEMP/exportOptions.plist"
+
+    - name: Create IPA (unsigned)
+      if: steps.detect.outputs.has_xcodeproj == 'true' && steps.signing_setup.outputs.signing_enabled != 'true'
+      id: export_ipa_unsigned
+      continue-on-error: true
+      run: |
+        # Attempt export with minimal options; likely to fail without signing, but fallback will handle IPA
+        xcodebuild -exportArchive \
+          -archivePath $RUNNER_TEMP/Requestify.xcarchive \
+          -exportPath $RUNNER_TEMP/Requestify \
           -exportOptionsPlist exportOptions.plist
+
+    # Upload export logs if export failed (helps diagnose Unknown Distribution Error)
+    - name: Upload Xcode export logs
+      if: steps.detect.outputs.has_xcodeproj == 'true' && steps.export_ipa.outcome != 'success'
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/export-logs"
+        # Search common temp locations for xcdistributionlogs bundles
+        find /var/folders -type d -name "*.xcdistributionlogs" -prune -exec cp -R {} "$RUNNER_TEMP/export-logs/" \; 2>/dev/null || true
+        find "$HOME/Library/Logs" -type d -name "*.xcdistributionlogs" -prune -exec cp -R {} "$RUNNER_TEMP/export-logs/" \; 2>/dev/null || true
+        ls -la "$RUNNER_TEMP/export-logs" || true
+      continue-on-error: true
+
+    - name: Upload export log artifacts
+      if: steps.detect.outputs.has_xcodeproj == 'true' && steps.export_ipa.outcome != 'success'
+      uses: actions/upload-artifact@v4
+      with:
+        name: xcode-export-logs
+        path: ${{ runner.temp }}/export-logs
+        if-no-files-found: warn
+        retention-days: 5
 
     # Fallback: package unsigned IPA if export failed or signing not configured
     - name: Fallback - Package unsigned IPA
-      if: steps.detect.outputs.has_xcodeproj == 'true' && steps.export_ipa.outcome != 'success'
+      if: steps.detect.outputs.has_xcodeproj == 'true' && (steps.export_ipa.outcome != 'success' && steps.export_ipa_unsigned.outcome != 'success')
       run: |
         set -e
         APP_DIR="$RUNNER_TEMP/Requestify.xcarchive/Products/Applications"
