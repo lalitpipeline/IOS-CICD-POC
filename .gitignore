@@ -6,3 +6,10 @@ DerivedData/
 .swiftpm/configuration/registries.json
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
+
+# Old App directory (replaced by RequestifyApp)
+App/
+
+# Generated Xcode projects
+RequestifyApp/*.xcodeproj
+*.xcworkspace
