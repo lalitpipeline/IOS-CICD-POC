@@ -173,7 +173,7 @@ jobs:
         xcodebuild -exportArchive \
           -archivePath $RUNNER_TEMP/Requestify.xcarchive \
           -exportPath $RUNNER_TEMP/Requestify \
-          -exportOptionsPlist exportOptions.plist
+          -exportOptionsPlist $GITHUB_WORKSPACE/exportOptions.plist
 
     # Upload export logs if export failed (helps diagnose Unknown Distribution Error)
     - name: Upload Xcode export logs
