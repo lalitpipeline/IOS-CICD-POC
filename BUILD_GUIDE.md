@@ -5,7 +5,7 @@ This repository contains both a Swift Package (Requestify) and an iOS applicatio
 ## Directory Structure
 
 ```
-poc-ios/
+IOS-CICD-POC/
 ├── Package.swift                    # Swift Package manifest for Requestify library
 ├── Sources/
 │   └── Requestify/                  # Library source code
