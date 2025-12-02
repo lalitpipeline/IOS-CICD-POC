@@ -153,27 +153,22 @@ jobs:
 
 
 
-    # Create IPA
+    # Create IPA - Skip export and go directly to fallback packaging
     - name: Create IPA (signed)
       if: steps.detect.outputs.has_xcodeproj == 'true' && steps.signing_setup.outputs.signing_enabled == 'true'
       id: export_ipa
       continue-on-error: true
       run: |
-        xcodebuild -exportArchive \
-          -archivePath $RUNNER_TEMP/Requestify.xcarchive \
-          -exportPath $RUNNER_TEMP/Requestify \
-          -exportOptionsPlist "$RUNNER_TEMP/exportOptions.plist"
+        echo "Skipping exportArchive due to plist issues, will use fallback packaging"
+        exit 1
 
     - name: Create IPA (unsigned)
       if: steps.detect.outputs.has_xcodeproj == 'true' && steps.signing_setup.outputs.signing_enabled != 'true'
       id: export_ipa_unsigned
       continue-on-error: true
       run: |
-        # Attempt export with minimal options; likely to fail without signing, but fallback will handle IPA
-        xcodebuild -exportArchive \
-          -archivePath $RUNNER_TEMP/Requestify.xcarchive \
-          -exportPath $RUNNER_TEMP/Requestify \
-          -exportOptionsPlist $GITHUB_WORKSPACE/exportOptions.plist
+        echo "Skipping exportArchive for unsigned build, will use fallback packaging"
+        exit 1
 
     # Upload export logs if export failed (helps diagnose Unknown Distribution Error)
     - name: Upload Xcode export logs
