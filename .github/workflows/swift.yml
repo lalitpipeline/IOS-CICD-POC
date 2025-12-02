@@ -160,7 +160,6 @@ jobs:
       continue-on-error: true
       run: |
         echo "Skipping exportArchive due to plist issues, will use fallback packaging"
-        exit 1
 
     - name: Create IPA (unsigned)
       if: steps.detect.outputs.has_xcodeproj == 'true' && steps.signing_setup.outputs.signing_enabled != 'true'
@@ -168,7 +167,7 @@ jobs:
       continue-on-error: true
       run: |
         echo "Skipping exportArchive for unsigned build, will use fallback packaging"
-        exit 1
+
 
     # Upload export logs if export failed (helps diagnose Unknown Distribution Error)
     - name: Upload Xcode export logs
