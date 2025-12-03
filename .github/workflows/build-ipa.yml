@@ -1,0 +1,64 @@
+name: Build iOS IPA for Firebase
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Install XcodeGen
+      run: brew install xcodegen
+    
+    - name: Generate Xcode project
+      run: xcodegen generate
+    
+    - name: List available schemes
+      run: xcodebuild -list -project FirebaseDistributionApp.xcodeproj
+    
+    - name: Build and Archive
+      run: |
+        xcodebuild clean archive \
+          -project FirebaseDistributionApp.xcodeproj \
+          -scheme FirebaseDistributionApp \
+          -archivePath $RUNNER_TEMP/FirebaseDistributionApp.xcarchive \
+          -destination 'generic/platform=iOS' \
+          CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGN_ENTITLEMENTS="" \
+          -configuration Release
+    
+    - name: Create IPA from Archive
+      run: |
+        # Create Payload directory
+        mkdir -p $RUNNER_TEMP/Payload
+        
+        # Copy .app to Payload
+        cp -R $RUNNER_TEMP/FirebaseDistributionApp.xcarchive/Products/Applications/FirebaseDistributionApp.app $RUNNER_TEMP/Payload/
+        
+        # Create IPA
+        cd $RUNNER_TEMP
+        zip -r FirebaseDistributionApp.ipa Payload
+        
+        # Move to workspace
+        mkdir -p $GITHUB_WORKSPACE/output
+        mv FirebaseDistributionApp.ipa $GITHUB_WORKSPACE/output/
+        
+        echo "IPA created successfully at output/FirebaseDistributionApp.ipa"
+        ls -lh $GITHUB_WORKSPACE/output/
+    
+    - name: Upload IPA Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FirebaseDistributionApp-IPA
+        path: output/FirebaseDistributionApp.ipa
+        retention-days: 30

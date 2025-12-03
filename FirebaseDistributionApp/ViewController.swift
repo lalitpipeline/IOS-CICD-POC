@@ -1,22 +1,21 @@
 import UIKit
-import Requestify
 
 class ViewController: UIViewController {
     
     private let titleLabel: UILabel = {
         let label = UILabel()
-        label.text = "Requestify Demo"
+        label.text = "Firebase Distribution Demo"
         label.font = UIFont.boldSystemFont(ofSize: 24)
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
     
-    private let statusLabel: UILabel = {
+    private let versionLabel: UILabel = {
         let label = UILabel()
-        label.text = "✓ Requestify Package Loaded"
+        label.text = "Version 1.0.0"
         label.font = UIFont.systemFont(ofSize: 16)
-        label.textColor = .systemGreen
+        label.textColor = .systemGray
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -24,30 +23,24 @@ class ViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        view.backgroundColor = .systemBackground
-        title = "Requestify"
-        
+        view.backgroundColor = .white
         setupUI()
-        testRequestify()
     }
     
     private func setupUI() {
         view.addSubview(titleLabel)
-        view.addSubview(statusLabel)
+        view.addSubview(versionLabel)
         
         NSLayoutConstraint.activate([
             titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             titleLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -20),
+            titleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20),
             
-            statusLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 20)
+            versionLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 16),
+            versionLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            versionLabel.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
+            versionLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20)
         ])
-    }
-    
-    private func testRequestify() {
-        // Test that we can use the Requestify package
-        let params = Params(path: "/test", method: .get)
-        print("✓ Requestify Params created: \\(params.path)")
     }
 }
