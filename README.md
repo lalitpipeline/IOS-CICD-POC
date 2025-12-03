@@ -1,6 +1,6 @@
 # Firebase Distribution iOS App
 
-A simple iOS application configured for unsigned IPA generation and Firebase App Distribution.
+A simple iOS application configured for **signed IPA generation** and Firebase App Distribution.
 
 ## Project Structure
 
@@ -11,6 +11,7 @@ A simple iOS application configured for unsigned IPA generation and Firebase App
 │   ├── ViewController.swift    # Main view controller
 │   └── Info.plist             # App metadata
 ├── project.yml                 # XcodeGen configuration
+├── SIGNING_SETUP.md           # Code signing setup guide
 └── .github/
     └── workflows/
         └── build-ipa.yml       # GitHub Actions workflow
@@ -19,10 +20,10 @@ A simple iOS application configured for unsigned IPA generation and Firebase App
 ## Features
 
 - ✅ Clean iOS app with UIKit
-- ✅ Unsigned IPA generation
+- ✅ **Signed IPA generation** with code signing
 - ✅ GitHub Actions CI/CD
 - ✅ Ready for Firebase App Distribution
-- ✅ No code signing required
+- ✅ Secure certificate management via GitHub Secrets
 
 ## Local Development
 
@@ -72,10 +73,26 @@ rm -rf Payload
 The GitHub Actions workflow automatically:
 
 1. **Generates** Xcode project using XcodeGen
-2. **Builds** the iOS app
-3. **Archives** without code signing
-4. **Creates** unsigned IPA file
-5. **Uploads** IPA as artifact (30-day retention)
+2. **Sets up** code signing with certificates from GitHub Secrets
+3. **Builds** the iOS app with signing
+4. **Archives** with proper code signing
+5. **Exports** signed IPA file
+6. **Uploads** IPA as artifact (30-day retention)
+
+### Required GitHub Secrets
+
+Before the workflow can create signed IPAs, you need to configure these secrets:
+
+| Secret | Description |
+|--------|-------------|
+| `BUILD_CERTIFICATE_BASE64` | Base64 encoded .p12 signing certificate |
+| `P12_PASSWORD` | Password for the .p12 certificate |
+| `BUILD_PROVISION_PROFILE_BASE64` | Base64 encoded provisioning profile |
+| `KEYCHAIN_PASSWORD` | Temporary keychain password (e.g., "actions") |
+| `DEVELOPMENT_TEAM` | Your Apple Developer Team ID |
+| `EXPORT_OPTIONS_PLIST` | Base64 encoded ExportOptions.plist |
+
+**📖 See [SIGNING_SETUP.md](SIGNING_SETUP.md) for detailed setup instructions.**
 
 ### Workflow Triggers
 - Push to `main` branch
@@ -86,7 +103,43 @@ The GitHub Actions workflow automatically:
 
 1. Go to **Actions** tab in GitHub
 2. Select latest workflow run
-3. Download **FirebaseDistributionApp-IPA** artifact
+3. Download **FirebaseDistributionApp-IPA-Signed** artifact
+
+## Code Signing Setup
+
+To enable signed IPA generation, follow these steps:
+
+### Quick Start
+
+1. **Read the guide**: [SIGNING_SETUP.md](SIGNING_SETUP.md)
+2. **Generate certificates** from Apple Developer Portal
+3. **Encode to Base64** (certificate, provisioning profile, ExportOptions.plist)
+4. **Add GitHub Secrets** (6 secrets required)
+5. **Push to trigger** signed build
+
+### ExportOptions.plist Template
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>ad-hoc</string>
+    <key>teamID</key>
+    <string>YOUR_TEAM_ID</string>
+    <key>signingStyle</key>
+    <string>manual</string>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.example.firebasedistributionapp</key>
+        <string>YOUR_PROFILE_NAME</string>
+    </dict>
+</dict>
+</plist>
+```
+
+For complete instructions, see **[SIGNING_SETUP.md](SIGNING_SETUP.md)**.
 
 ## Firebase App Distribution Setup
 
@@ -160,20 +213,20 @@ deploymentTarget:
 
 ## Troubleshooting
 
+### Issue: "No signing identity found"
+**Solution**: Verify GitHub Secrets are configured correctly. See [SIGNING_SETUP.md](SIGNING_SETUP.md)
+
+### Issue: "No provisioning profile matches"
+**Solution**: Ensure bundle ID matches in `project.yml`, provisioning profile, and `ExportOptions.plist`
+
 ### Issue: "No .app found in archive"
 **Solution**: Ensure the archive step completed successfully. Check GitHub Actions logs.
 
-### Issue: "Unsigned IPA won't install"
-**Solution**: Unsigned IPAs require:
-- Jailbroken device, OR
-- Developer provisioning profile, OR
-- Firebase App Distribution (recommended)
+### Issue: Certificate expired
+**Solution**: Regenerate certificate in Apple Developer Portal and update `BUILD_CERTIFICATE_BASE64` secret
 
-### Issue: XcodeGen not found
-**Solution**: Install XcodeGen
-```bash
-brew install xcodegen
-```
+### Issue: Workflow fails at signing step
+**Solution**: Check that all 6 GitHub Secrets are set with correct Base64 values
 
 ## Next Steps
 

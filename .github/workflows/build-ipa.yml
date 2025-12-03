@@ -24,41 +24,75 @@ jobs:
     - name: List available schemes
       run: xcodebuild -list -project FirebaseDistributionApp.xcodeproj
     
+    - name: Setup Code Signing
+      env:
+        BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+        P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+        BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+        KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      run: |
+        # Create variables
+        CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+        PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+        KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+        # Import certificate and provisioning profile from secrets
+        echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+        echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+
+        # Create temporary keychain
+        security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+        security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+        # Import certificate to keychain
+        security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+        security list-keychain -d user -s $KEYCHAIN_PATH
+
+        # Apply provisioning profile
+        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+    
     - name: Build and Archive
+      env:
+        DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
       run: |
         xcodebuild clean archive \
           -project FirebaseDistributionApp.xcodeproj \
           -scheme FirebaseDistributionApp \
           -archivePath $RUNNER_TEMP/FirebaseDistributionApp.xcarchive \
           -destination 'generic/platform=iOS' \
-          CODE_SIGNING_ALLOWED=NO \
-          CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGN_ENTITLEMENTS="" \
-          -configuration Release
+          -configuration Release \
+          DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM
     
-    - name: Create IPA from Archive
+    - name: Export IPA
+      env:
+        EXPORT_OPTIONS_PLIST: ${{ secrets.EXPORT_OPTIONS_PLIST }}
       run: |
-        # Create Payload directory
-        mkdir -p $RUNNER_TEMP/Payload
+        # Create ExportOptions.plist
+        echo -n "$EXPORT_OPTIONS_PLIST" | base64 --decode -o $RUNNER_TEMP/ExportOptions.plist
         
-        # Copy .app to Payload
-        cp -R $RUNNER_TEMP/FirebaseDistributionApp.xcarchive/Products/Applications/FirebaseDistributionApp.app $RUNNER_TEMP/Payload/
-        
-        # Create IPA
-        cd $RUNNER_TEMP
-        zip -r FirebaseDistributionApp.ipa Payload
+        # Export IPA
+        xcodebuild -exportArchive \
+          -archivePath $RUNNER_TEMP/FirebaseDistributionApp.xcarchive \
+          -exportPath $RUNNER_TEMP/export \
+          -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist
         
         # Move to workspace
         mkdir -p $GITHUB_WORKSPACE/output
-        mv FirebaseDistributionApp.ipa $GITHUB_WORKSPACE/output/
+        mv $RUNNER_TEMP/export/*.ipa $GITHUB_WORKSPACE/output/FirebaseDistributionApp.ipa
         
-        echo "IPA created successfully at output/FirebaseDistributionApp.ipa"
+        echo "Signed IPA created successfully"
         ls -lh $GITHUB_WORKSPACE/output/
+    
+    - name: Clean up keychain
+      if: always()
+      run: |
+        security delete-keychain $RUNNER_TEMP/app-signing.keychain-db || true
     
     - name: Upload IPA Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: FirebaseDistributionApp-IPA
+        name: FirebaseDistributionApp-IPA-Signed
         path: output/FirebaseDistributionApp.ipa
         retention-days: 30
